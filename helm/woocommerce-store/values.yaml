@@ -1,0 +1,55 @@
+# Store identification
+storeName: "default-store"
+storeId: "default"
+
+# MySQL configuration
+mysql:
+  image: mysql:8.0
+  storage: 5Gi
+  storageClass: ""  # Empty = cluster default
+  rootPassword: "REPLACE_ME"
+  database: wordpress
+  user: wpuser
+  password: "REPLACE_ME"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# WordPress configuration
+wordpress:
+  image: wordpress:latest
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  host: "default.local"
+  tls:
+    enabled: false
+    secretName: ""
+
+# Security & Isolation
+resourceQuota:
+  enabled: false
+  pods: "10"
+  services: "5"
+  persistentvolumeclaims: "3"
+  requestsMemory: "2Gi"
+  requestsCpu: "1"
+  limitsMemory: "4Gi"
+  limitsCpu: "2"
+
+networkPolicy:
+  enabled: false

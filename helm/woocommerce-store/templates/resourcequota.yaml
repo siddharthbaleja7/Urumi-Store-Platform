@@ -1,0 +1,16 @@
+{{- if .Values.resourceQuota.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: store-quota
+  namespace: {{ .Values.storeName }}
+spec:
+  hard:
+    pods: {{ .Values.resourceQuota.pods | quote }}
+    services: {{ .Values.resourceQuota.services | quote }}
+    persistentvolumeclaims: {{ .Values.resourceQuota.persistentvolumeclaims | quote }}
+    requests.memory: {{ .Values.resourceQuota.requestsMemory }}
+    requests.cpu: {{ .Values.resourceQuota.requestsCpu }}
+    limits.memory: {{ .Values.resourceQuota.limitsMemory }}
+    limits.cpu: {{ .Values.resourceQuota.limitsCpu }}
+{{- end }}

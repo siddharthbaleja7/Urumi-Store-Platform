@@ -1,0 +1,45 @@
+# Production VPS overrides
+storeName: "override-me"
+storeId: "override-me"
+
+mysql:
+  storage: 10Gi
+  storageClass: "local-path" # k3s default is local-path usually
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+wordpress:
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+ingress:
+  enabled: true
+  className: nginx
+  host: "override-me.yourdomain.com"
+  tls:
+    enabled: true
+    # secretName will be auto-generated
+
+resourceQuota:
+  enabled: true
+  pods: "10"
+  services: "5"
+  persistentvolumeclaims: "3"
+  requestsMemory: "2Gi"
+  requestsCpu: "1"
+  limitsMemory: "4Gi"
+  limitsCpu: "2"
+
+networkPolicy:
+  enabled: true

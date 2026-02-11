@@ -1,0 +1,23 @@
+# Local development overrides
+storeName: "override-me"
+storeId: "override-me"
+
+mysql:
+  storage: 5Gi
+  storageClass: "standard" # Kind uses standard usually, or hostpath. standard is default in Kind.
+
+wordpress:
+  replicas: 1
+
+ingress:
+  enabled: true
+  className: nginx
+  host: "override-me.local"
+  tls:
+    enabled: false
+
+resourceQuota:
+  enabled: false
+
+networkPolicy:
+  enabled: false

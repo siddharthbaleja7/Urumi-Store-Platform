@@ -1,0 +1,7 @@
+storeName: "store-helm-test"
+storeId: "helm-test-001"
+mysql:
+  rootPassword: "rootpass123"
+  password: "wppass123"
+ingress:
+  host: "helm-test.local"
