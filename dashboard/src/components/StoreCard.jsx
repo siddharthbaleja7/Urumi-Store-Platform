@@ -25,16 +25,38 @@ export function StoreCard({ store, onDelete }) {
                 </div>
 
                 {store.status === 'Ready' && store.url && (
-                    <div className="flex items-center text-sm">
-                        <span className="font-medium text-gray-600 w-24">URL:</span>
-                        <a
-                            href={store.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline"
-                        >
-                            {store.url}
-                        </a>
+                    <div className="space-y-2">
+                        <div className="flex items-center text-sm">
+                            <span className="font-medium text-gray-600 w-24">Store URL:</span>
+                            <a
+                                href={store.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline"
+                            >
+                                {store.url}
+                            </a>
+                        </div>
+                        {store.admin_url && (
+                            <div className="flex items-center text-sm">
+                                <span className="font-medium text-gray-600 w-24">Admin URL:</span>
+                                <a
+                                    href={store.admin_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline"
+                                >
+                                    {store.admin_url}
+                                </a>
+                            </div>
+                        )}
+                        {store.engine === 'medusa' && (
+                            <div className="bg-gray-100 p-2 rounded text-xs mt-2">
+                                <p className="font-medium">Default Medusa Admin:</p>
+                                <p>Email: admin@medusa-test.com</p>
+                                <p>Pass: supersecret</p>
+                            </div>
+                        )}
                     </div>
                 )}
 

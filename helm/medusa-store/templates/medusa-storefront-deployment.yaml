@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medusa-storefront
+  namespace: {{ .Values.storeName }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: medusa-storefront
+  template:
+    metadata:
+      labels:
+        app: medusa-storefront
+        store-id: {{ .Values.storeId }}
+    spec:
+      containers:
+      - name: medusa-storefront
+        image: node:18
+        workingDir: /app
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            if [ ! -f package.json ]; then
+              echo "Initializing Medusa Storefront..."
+              # Clean directory if it's not empty but missing package.json
+              ls -A | xargs rm -rf
+              git clone https://github.com/medusajs/nextjs-starter-medusa.git .
+              rm -rf .git
+              npm install
+              
+              # Configuration
+              echo "NEXT_PUBLIC_MEDUSA_BACKEND_URL=http://medusa-backend:9000" > .env.local
+            fi
+            
+            if [ ! -f .next ]; then
+                npm run build
+            fi
+            
+            npm start
+        ports:
+        - containerPort: 8000
+        env:
+        - name: NEXT_PUBLIC_MEDUSA_BACKEND_URL
+          value: "http://medusa-backend:9000"
+        resources:
+          requests:
+            memory: {{ .Values.storefront.resources.requests.memory }}
+            cpu: {{ .Values.storefront.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.storefront.resources.limits.memory }}
+            cpu: {{ .Values.storefront.resources.limits.cpu }}
+        volumeMounts:
+        - name: medusa-storefront-data
+          mountPath: /app
+      volumes:
+      - name: medusa-storefront-data
+        persistentVolumeClaim:
+          claimName: medusa-storefront-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: medusa-storefront
+  namespace: {{ .Values.storeName }}
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+  selector:
+    app: medusa-storefront
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: medusa-storefront-pvc
+  namespace: {{ .Values.storeName }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

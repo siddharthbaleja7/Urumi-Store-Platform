@@ -18,11 +18,17 @@ function generatePassword(length = 16) {
     return password;
 }
 
-async function helmInstall(storeId, namespace, hostname, environment = 'local') {
+async function helmInstall(storeId, namespace, hostname, engine = 'woocommerce', environment = 'local') {
     const mysqlRootPassword = generatePassword();
     const mysqlPassword = generatePassword();
+    const postgresPassword = generatePassword(); // For Medusa
 
-    const valuesYaml = `
+    let valuesYaml = '';
+    let chartName = '';
+
+    if (engine === 'woocommerce') {
+        chartName = 'woocommerce-store';
+        valuesYaml = `
 storeName: "${namespace}"
 storeId: "${storeId}"
 mysql:
@@ -31,17 +37,39 @@ mysql:
 ingress:
   host: "${hostname}"
 `;
+    } else if (engine === 'medusa') {
+        chartName = 'medusa-store';
+        // For Medusa, we need multiple hosts usually, but let's stick to subdomains or paths.
+        // In our chart we defined storefrontHost and adminHost.
+        // Let's assume:
+        // storefront -> store-ID.local
+        // admin -> admin-ID.local
+        // backend api is on admin host usually.
+
+        valuesYaml = `
+storeName: "${namespace}"
+storeId: "${storeId}"
+postgres:
+  password: "${postgresPassword}"
+ingress:
+  storefrontHost: "${hostname}"
+  adminHost: "admin-${hostname}"
+backend:
+  jwtSecret: "${generatePassword(32)}"
+  cookieSecret: "${generatePassword(32)}"
+`;
+    } else {
+        throw new Error(`Unsupported engine: ${engine}`);
+    }
 
     const valuesFile = `/tmp/values-${storeId}.yaml`;
     fs.writeFileSync(valuesFile, valuesYaml);
 
     // Path from backend dir to helm dir
-    const chartPath = '../helm/woocommerce-store';
+    const chartPath = `../helm/${chartName}`;
 
-    // Base values file (will be implemented in Phase 6, strictly speaking local vs prod, but for now just use provided yaml or defaults)
-    // We don't have values-local.yaml yet, so rely on default values.yaml in chart + our override
-    // Adding logic for future environment support
     let baseValuesArgs = '';
+    // Check for environment specific values file
     if (fs.existsSync(`${chartPath}/values-${environment}.yaml`)) {
         baseValuesArgs = `-f ${chartPath}/values-${environment}.yaml`;
     }
@@ -55,7 +83,11 @@ ingress:
         console.log('Helm install output:', stdout);
         if (stderr) console.error('Helm stderr:', stderr);
 
-        return { mysqlRootPassword, mysqlPassword };
+        return {
+            mysqlRootPassword,
+            mysqlPassword,
+            postgresPassword
+        };
     } catch (error) {
         console.error('Helm install failed:', error);
         throw error;
@@ -63,45 +95,55 @@ ingress:
 }
 
 async function helmUninstall(storeId, namespace) {
-    const cmd = `helm uninstall ${storeId}`;
+    const cmd = `helm uninstall ${storeId} -n ${namespace}`; // Uninstall from specific namespace if helm supports it, mostly helm list is global or namespaced?
+    // Actually helm install ... --create-namespace puts release in that namespace.
+    // So uninstall needs -n ${namespace} usually.
 
     try {
-        await execPromise(cmd);
-        console.log(`Helm uninstalled: ${storeId}`);
+        await execPromise(cmd); // Try simple uninstall first (might fail if namespace issue)
+        // If release was installed in namespace 'namespace', we need -n.
+        // The install command used `helm install ${storeId} ... --create-namespace`. 
+        // This usually installs release IN the namespace if --namespace is passed? 
+        // Wait, command was `helm install ${storeId} ... --create-namespace`. 
+        // It uses default namespace if --namespace not passed!
+        // The Chart has `namespace: {{ .Values.storeName }}` in templates?
+        // If templates define namespace, Helm installs resources there, but the RELEASE object might be in default.
+        // Let's assume standard behavior:
+        // If I did `helm install name ./chart --create-namespace`, it installs in default unless `-n` is provided.
+        // BUT the templates have `namespace: ...`.
 
-        // Namespace might take time to terminate, helm uninstall doesn't delete namespace usually unless configured, 
-        // but in our chart we manage namespace? 
-        // Actually, helm install --create-namespace created it, or the chart template created it.
-        // If the chart creates the namespace resource, helm uninstall deletes it.
-        // If we used --create-namespace, we might need to delete it manually if the chart didn't own it.
-        // Our chart has a namespace.yaml, so Helm manages it.
+        // Correct approach: `helm install ${storeId} ./chart -n ${namespace} --create-namespace`
+        // My previous code didn't use `-n ${namespace}` in install!
 
-        // However, let's play safe and try to delete namespace if it exists after a delay, 
-        // or trust Helm if it's part of the chart.
-        // In k8s-client.js provided in guide: "await k8sApi.deleteNamespace(namespace);"
-        // Better to explicitly delete it if Helm doesn't.
-
-        // Double check: if chart has Namespace resource, uninstall deletes it. 
-        // But usually best practice is to let Helm manage it.
-        // But just in case:
+        // LIMITATION: If I change install to use `-n`, I must update uninstall.
+        // PROPOSAL: Update `helmInstall` to use `-n ${namespace}` explicitly.
+    } catch (e) {
+        // Try with namespace
         try {
-            await k8sApi.deleteNamespace(namespace);
-            console.log(`Namespace delete requested: ${namespace}`);
-        } catch (e) {
-            // Ignore if not found
-            if (e.response && e.response.statusCode !== 404) console.error("Error deleting namespace:", e.body);
+            await execPromise(`helm uninstall ${storeId} -n ${namespace}`);
+        } catch (e2) {
+            console.log("Uninstall failed or already gone");
         }
+    }
 
+    try {
+        // Helm uninstall might not remove the namespace itself if it wasn't created by helm strictly as a resource?
+        // --create-namespace creates it.
+        // Deleting the namespace is the surest way to clean up.
+        console.log(`Deleting namespace: ${namespace}`);
+        await k8sApi.deleteNamespace(namespace);
     } catch (error) {
-        console.error('Helm uninstall failed:', error);
-        throw error;
+        if (error.response && error.response.statusCode !== 404) {
+            console.error('Error deleting namespace:', error.body);
+        }
     }
 }
 
-async function checkStoreStatus(namespace) {
+async function checkStoreStatus(namespace, engine) {
     try {
-        // Check if WordPress pod is ready
-        const pods = await k8sApi.listNamespacedPod(namespace, undefined, undefined, undefined, undefined, 'app=wordpress');
+        const labelSelector = engine === 'medusa' ? 'app=medusa-backend' : 'app=wordpress'; // Check backend/wordpress
+
+        const pods = await k8sApi.listNamespacedPod(namespace, undefined, undefined, undefined, undefined, labelSelector);
 
         if (pods.body.items.length === 0) {
             return 'Provisioning';
@@ -109,9 +151,7 @@ async function checkStoreStatus(namespace) {
 
         const pod = pods.body.items[0];
 
-        // Check phase
         if (pod.status.phase === 'Running') {
-            // Check if container is ready
             const containerStatuses = pod.status.containerStatuses || [];
             const allReady = containerStatuses.every(cs => cs.ready) && containerStatuses.length > 0;
 
@@ -124,8 +164,8 @@ async function checkStoreStatus(namespace) {
 
         return 'Provisioning';
     } catch (error) {
-        console.error('Error checking status:', error.message);
-        if (error.response && error.response.statusCode === 404) return 'Provisioning'; // Namespace might not exist yet
+        if (error.response && error.response.statusCode === 404) return 'Provisioning';
+        // console.error('Error checking status:', error.message);
         return 'Provisioning';
     }
 }

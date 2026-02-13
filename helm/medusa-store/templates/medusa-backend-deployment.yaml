@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medusa-backend
+  namespace: {{ .Values.storeName }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: medusa-backend
+  template:
+    metadata:
+      labels:
+        app: medusa-backend
+    spec:
+      containers:
+      - name: medusa-backend
+        image: node:18
+        workingDir: /app
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            if [ ! -f package.json ]; then
+              echo "Initializing Medusa Backend..."
+              # Clean directory if it's not empty but missing package.json
+              ls -A | xargs rm -rf
+              git clone https://github.com/medusajs/medusa-starter-default.git .
+              rm -rf .git
+              npm install
+              # Create .env
+              echo "DATABASE_URL=$DATABASE_URL" > .env
+              echo "REDIS_URL=$REDIS_URL" >> .env
+              echo "JWT_SECRET=$JWT_SECRET" >> .env
+              echo "COOKIE_SECRET=$COOKIE_SECRET" >> .env
+            fi
+            
+            # Ensure dependencies are installed
+            if [ ! -d node_modules ]; then
+                npm install
+            fi
+
+            # Build the project (Required for Medusa v2)
+            echo "Building project..."
+            npx medusa build
+
+            # Run migrations
+            echo "Running migrations..."
+            npx medusa db:migrate
+            
+            # Seed data (only if not already seeded)
+            if [ ! -f .seeded ]; then
+              echo "Seeding database..."
+              npx medusa exec ./src/scripts/seed.ts
+              touch .seeded
+            fi
+            
+            # Create admin user
+            echo "Creating admin user..."
+            npx medusa user -e admin@medusa-test.com -p supersecret || true
+            
+            # Start
+            echo "Starting Medusa..."
+            npx medusa start
+        env:
+        - name: DATABASE_URL
+          value: "postgres://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@postgres:5432/{{ .Values.postgres.database }}"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: JWT_SECRET
+          value: "{{ .Values.backend.jwtSecret }}"
+        - name: COOKIE_SECRET
+          value: "{{ .Values.backend.cookieSecret }}"
+        ports:
+        - containerPort: 9000
+        resources:
+          requests:
+            memory: {{ .Values.backend.resources.requests.memory }}
+            cpu: {{ .Values.backend.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.backend.resources.limits.memory }}
+            cpu: {{ .Values.backend.resources.limits.cpu }}
+        volumeMounts:
+        - name: medusa-backend-data
+          mountPath: /app
+      volumes:
+      - name: medusa-backend-data
+        persistentVolumeClaim:
+          claimName: medusa-backend-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: medusa-backend
+  namespace: {{ .Values.storeName }}
+spec:
+  ports:
+  - port: 9000
+    targetPort: 9000
+  selector:
+    app: medusa-backend
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: medusa-backend-pvc
+  namespace: {{ .Values.storeName }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

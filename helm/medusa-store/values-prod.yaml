@@ -1,7 +1,6 @@
-# Production values (VPS/k3s)
-storeName: "prod-store"
-mysql:
-  storageClass: "local-path" # k3s default
+# Production (k3s VPS)
+postgres:
+  storageClass: "local-path"
   resources:
     requests:
       memory: "512Mi"
@@ -9,7 +8,7 @@ mysql:
     limits:
       memory: "1Gi"
       cpu: "1000m"
-wordpress:
+backend:
   replicas: 2
   resources:
     requests:
@@ -18,8 +17,13 @@ wordpress:
     limits:
       memory: "1Gi"
       cpu: "1000m"
+redis:
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
 ingress:
-  className: "traefik" # k3s default
+  className: "traefik" # k3s uses traefik by default usually
   tls:
     enabled: true
-    secretName: "store-tls-prod"
+    secretName: "medusa-tls-prod"

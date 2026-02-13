@@ -10,8 +10,10 @@ db.exec(`
     engine TEXT NOT NULL,
     status TEXT NOT NULL,
     url TEXT,
+    admin_url TEXT,
     mysql_root_password TEXT,
     mysql_password TEXT,
+    postgres_password TEXT,
     error TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -30,8 +32,8 @@ const storeDb = {
 
   create: (store) => {
     const stmt = db.prepare(`
-      INSERT INTO stores (id, name, namespace, engine, status, url, mysql_root_password, mysql_password, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO stores (id, name, namespace, engine, status, url, admin_url, mysql_root_password, mysql_password, postgres_password, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       store.id,
@@ -40,8 +42,10 @@ const storeDb = {
       store.engine,
       store.status,
       store.url,
+      store.admin_url,
       store.mysql_root_password,
       store.mysql_password,
+      store.postgres_password,
       store.created_at,
       store.updated_at
     );
@@ -53,23 +57,23 @@ const storeDb = {
     if (!store) return null;
 
     const updated = { ...store, ...updates, updated_at: new Date().toISOString() };
-    
+
     // Construct dynamic update query
     const keys = Object.keys(updates);
     if (keys.length === 0) return store;
-    
+
     const setClause = keys.map(key => `${key} = ?`).join(', ');
     const values = keys.map(key => updates[key]);
-    
+
     // Add updated_at
     const stmt = db.prepare(`
       UPDATE stores 
       SET ${setClause}, updated_at = ?
       WHERE id = ?
     `);
-    
+
     stmt.run(...values, updated.updated_at, id);
-    
+
     return updated;
   },
 

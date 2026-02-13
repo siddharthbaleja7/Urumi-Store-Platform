@@ -54,13 +54,28 @@ app.post('/api/stores', rateLimitMiddleware, async (req, res) => {
                 error: `Maximum store limit reached (${MAX_STORES_PER_USER})`
             });
         }
-        const { engine = 'woocommerce' } = req.body;
+        const { engine = 'woocommerce', environment = 'local' } = req.body;
+
+        if (!['woocommerce', 'medusa'].includes(engine)) {
+            return res.status(400).json({ error: 'Invalid engine. Use woocommerce or medusa.' });
+        }
 
         const shortId = uuidv4().slice(0, 8);
         const id = `store-${shortId}`;
         const namespace = id;
         const hostname = `${id}.local`;
-        const url = `http://${hostname}`;
+
+        let url = '';
+        let admin_url = '';
+
+        if (engine === 'woocommerce') {
+            url = `http://${hostname}`;
+            admin_url = `http://${hostname}/wp-admin`;
+        } else {
+            // Medusa
+            url = `http://${hostname}`; // Storefront
+            admin_url = `http://admin-${hostname}`; // Backend/Admin
+        }
 
         const store = {
             id: id,
@@ -69,8 +84,10 @@ app.post('/api/stores', rateLimitMiddleware, async (req, res) => {
             engine,
             status: 'Provisioning',
             url,
+            admin_url,
             mysql_root_password: null,
             mysql_password: null,
+            postgres_password: null,
             error: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -84,26 +101,27 @@ app.post('/api/stores', rateLimitMiddleware, async (req, res) => {
         // Start provisioning in background
         (async () => {
             try {
-                console.log(`Starting provisioning for ${id}...`);
+                console.log(`Starting provisioning for ${id} (${engine})...`);
 
-                const passwords = await k8s.helmInstall(id, namespace, hostname);
+                const passwords = await k8s.helmInstall(id, namespace, hostname, engine, environment);
 
                 console.log(`Helm install complete for ${id}, waiting for pods...`);
 
                 // Poll until ready
                 let attempts = 0;
-                const maxAttempts = 60; // 5 minutes (5s interval)
+                const maxAttempts = 120; // 10 minutes (5s interval) - Medusa might be slow
 
                 while (attempts < maxAttempts) {
-                    const status = await k8s.checkStoreStatus(namespace);
+                    const status = await k8s.checkStoreStatus(namespace, engine);
 
                     if (status === 'Ready') {
                         storeDb.update(id, {
                             status: 'Ready',
                             mysql_root_password: passwords.mysqlRootPassword,
-                            mysql_password: passwords.mysqlPassword
+                            mysql_password: passwords.mysqlPassword,
+                            postgres_password: passwords.postgresPassword
                         });
-                        console.log(`✅ Store ${id} is Ready!`);
+                        console.log(` Store ${id} is Ready!`);
                         break;
                     }
 

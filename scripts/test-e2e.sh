@@ -25,7 +25,7 @@ for i in {1..60}; do
   echo "Status: $STATUS"
   
   if [ "$STATUS" == "Ready" ]; then
-    echo "✅ Store is ready!"
+    echo " Store is ready!"
     break
   fi
   
@@ -56,7 +56,7 @@ echo "Verifying cleanup..."
 if kubectl get ns $STORE_ID > /dev/null 2>&1; then
   echo "⚠️ Namespace still exists (might be terminating)"
 else
-  echo "✅ Namespace deleted"
+  echo " Namespace deleted"
 fi
 
 echo "🎉 E2E test passed!"

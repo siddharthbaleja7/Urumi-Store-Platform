@@ -1,23 +1,17 @@
-# Local development overrides
-storeName: "override-me"
-storeId: "override-me"
-
+# Local values (Kind/Minikube)
+storeName: "local-store"
 mysql:
-  storage: 5Gi
-  storageClass: "standard" # Kind uses standard usually, or hostpath. standard is default in Kind.
-
+  storageClass: "standard" # Usually standard on kind
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
 wordpress:
-  replicas: 1
-
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
 ingress:
-  enabled: true
-  className: nginx
-  host: "override-me.local"
+  className: "nginx"
   tls:
     enabled: false
-
-resourceQuota:
-  enabled: false
-
-networkPolicy:
-  enabled: false

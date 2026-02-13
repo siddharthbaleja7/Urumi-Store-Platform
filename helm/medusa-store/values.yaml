@@ -1,0 +1,90 @@
+# Store identification
+storeName: "default-store"
+storeId: "default"
+
+# Postgres configuration
+postgres:
+  image: postgres:14
+  storage: 5Gi
+  storageClass: ""  # Empty = cluster default
+  user: postgres
+  password: "REPLACE_ME_DB_PASSWORD"
+  database: medusa
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Redis (Optional but recommended for strict medusa, simpler without for demo if possible, 
+# but medusa backend requires redis connection usually for worker unless disabled. 
+# We'll use a simple redis deployment if needed or configure Medusa to run without workers if possible.
+# Actually, Medusa 1.x usually needs Redis. Medusa 2.x changed things. 
+# Let's assume Medusa 1.x standard starter which uses Redis for events.
+redis:
+  enabled: true
+  image: redis:alpine
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50n"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# Medusa Backend
+backend:
+  image: medusajs/medusa-starter-default:latest # We might need a custom image or use a generic one and init. 
+  # Using a prebuilt starter image is risky if it doesn't run migrations.
+  # For this task, maybe use a custom built image or standard node image and run npx?
+  # Let's stick to a known working approach: use a standard node image and install/run? 
+  # OR better, use `medusajs/medusa-starter-default` or similar if available.
+  # Actually, the requirement says "any default storefront/theme is fine".
+  # A robust way is to use a specific docker image that has medusa installed.
+  # I'll use a placeholder image for now and refine later if needed.
+  replicas: 1
+  jwtSecret: "supersecret"
+  cookieSecret: "supersecret"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+# Medusa Storefront (Next.js)
+storefront:
+  image: medusajs/medusa-storefront-starter:latest # Placeholder
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "1000m"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  host: "medusa-default.local"
+  storefrontHost: "store-default.local" # Separate host for storefront usually
+  adminHost: "admin-default.local"       # Medusa admin is often part of backend on /app or separate
+  tls:
+    enabled: false
+    secretName: ""
+
+# Security & Isolation
+resourceQuota:
+  enabled: false
+  requestsMemory: "2Gi"
+  requestsCpu: "1"
+  limitsMemory: "4Gi"
+  limitsCpu: "2"
+
+networkPolicy:
+  enabled: false

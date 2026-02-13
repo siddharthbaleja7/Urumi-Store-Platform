@@ -29,10 +29,12 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  const [selectedEngine, setSelectedEngine] = useState('woocommerce');
+
   const handleCreateStore = async () => {
     setLoading(true);
     try {
-      await api.createStore({ engine: 'woocommerce' });
+      await api.createStore({ engine: selectedEngine });
       await fetchStores();
       setError(null);
     } catch (err) {
@@ -67,7 +69,7 @@ function App() {
             🏪 Urumi Store Platform
           </h1>
           <p className="text-gray-600">
-            Kubernetes-powered WooCommerce store provisioning
+            Kubernetes-powered Store Provisioning Platform (WooCommerce & Medusa)
           </p>
         </div>
 
@@ -78,14 +80,27 @@ function App() {
           </div>
         )}
 
-        {/* Create Store Button */}
-        <div className="mb-8">
+        {/* Create Store Controls */}
+        <div className="mb-8 flex items-center space-x-4">
+          <select
+            value={selectedEngine}
+            onChange={(e) => setSelectedEngine(e.target.value)}
+            disabled={loading}
+            className="block w-48 pl-3 pr-10 py-3 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm bg-white"
+          >
+            <option value="woocommerce">WooCommerce</option>
+            <option value="medusa">MedusaJS</option>
+          </select>
+
           <button
             onClick={handleCreateStore}
             disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+            className={`
+              inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white 
+              ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 transition-colors'}
+            `}
           >
-            {loading ? '⏳ Creating Store...' : '+ Create New Store'}
+            {loading ? '⏳ Creating Store...' : `+ Create ${selectedEngine === 'woocommerce' ? 'WooCommerce' : 'Medusa'} Store`}
           </button>
         </div>
 
